@@ -1,0 +1,30 @@
+[project]
+name = "physio-chat"
+version = "0.1.0"
+description = "AI agent to role-play the patient physio interaction"
+readme = "README.md"
+authors = [
+    { name = "dteague", email = "dylanot1@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "biopython>=1.88",
+    "fastapi[standard]>=0.157.0",
+    "fonttools>=4.67.0",
+    "langgraph>=1.2.16",
+    "ollama>=0.6.3",
+    "pandas>=3.1.0",
+    "pydantic>=2.14.1",
+    "pymupdf>=2.0",
+    "rapidocr>=3.10.0",
+    "sqlite-vec>=0.1.9",
+    "token-count>=0.2.1",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+physio-chat = "physio-chat:main"
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14.0"]
+build-backend = "uv_build"
