@@ -27,3 +27,10 @@ class ChatMessages(BaseModel):
     id: int
     status: Status
     messages: list[ChatMessage]
+
+class ChatOptions(BaseModel):
+    temperature: float = 0.0
+    top_k: int         = 10
+    top_p: float       = 0.5
+    num_predict: int   = 125
+    num_ctx: int       = 8096

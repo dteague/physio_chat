@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse
-from ..schema import ChatQuery, ChatResponse, ChatID, ChatMessage, ChatMessages, Status
+from ..schema import ChatQuery, ChatResponse, ChatID, ChatMessage, ChatMessages, Status, ChatOptions
 
 from ..chat_model.model import Model
 # from ..chat_model.test_model import Model
@@ -27,6 +27,11 @@ def initialize_chat(model: Model):
 async def list_chats(model: Model = Depends(get_model)):
     chat_id = model.list_chats()
     return [ChatID(**chat) for chat in chat_id]
+
+
+@router.post('/chat/params')
+async def change_model_parameters(options: ChatOptions, model: Model = Depends(get_model)):
+    model.set_options(options)
 
 
 @router.post('/chat')

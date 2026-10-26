@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import ollama
+import random
+
 from .embedding import EmbeddingDB
 from .history import HistoryDB
-from ..schema import Status
+from ..schema import Status, ChatOptions
 
 class Model:
     LANG_MODEL = 'llama3.2'
@@ -13,18 +15,28 @@ class Model:
         embed_db_file = Path('data/embeddings.db')
         embed_tbl_name = 'vectors'
         self.embedding = EmbeddingDB(embed_db_file, embed_tbl_name, True)
+        self.options = {}
         
         self.historydb = HistoryDB()
         self.chat_history = []
         self.patient_profile = ""
         self.chat_id = -1
-        self.status = Status.READY 
+        self.status = Status.READY
+        self.n_rag_facts = 2
 
-        self.system_message_base = 'You are a patient with endometriosis who is visiting a physical therapy clinic for one or more musculoskeletal disorders. Your chats are being used for a role play with physical therapy students to help them learn how to diagnosis your problem and create a treatment plan. Respond as if you were a real patient. Keep the replies short and in a casual style, avoiding technical terms. '
+        self.system_message_base = '''
+        You are a patient with endometriosis who is visiting a physical therapy clinic for one or more musculoskeletal disorders.
+        Your chats are being used for a role play with physical therapy students to help them learn how to diagnosis your problem
+        and create a treatment plan. Respond as if you were a real patient.
+        Keep the replies quite short and in a casual style. Do not use technical terms and ask questions about technical terms if the user
+        uses on to you. '''
 
     def create_empty_chat(self) -> int:
         self.chat_id = self.historydb.add_patient("temporary", "Initializing...")
         return self.chat_id
+
+    def set_options(self, options: ChatOptions) -> None:
+        self.options = options.model_dump()
 
     def start_chat_agent(self) -> None:
         self.create_agent()
@@ -48,7 +60,12 @@ class Model:
         return self.chat_history
 
     def create_agent(self) -> None:
-        user_message = "Can you create a patient profile for someone visiting a physical therapist with one or more musculoskeletal disorders? For this patient profile, include only the following: basic demographic information, medical history, current symptoms (both related to endometriosis and the musculoskeletal disorder(s)), past medical treatment, and your goals for the treatment."
+        user_message = '''
+        Create a patient profile for someone visiting a physical therapist with one or more musculoskeletal disorders.
+        For this patient profile, include only the following: basic demographic information, medical history, current
+        symptoms (both related to endometriosis and the musculoskeletal disorder(s)), past medical treatment,
+        and your goals for the treatment.'''
+
         system_message =  self.system_message_base +'Using the following information to help create realisitic symptoms:\n'
 
         embedding_query = 'What are common symptoms of endometriosis especially needing physical therapy?'
@@ -61,14 +78,19 @@ class Model:
                 {'role': 'system', 'content': system_message},
                 {'role': 'user', 'content': user_message}
             ],
+            options = self.options
         )
         self.patient_profile = response['message']['content']
 
     def start_chat(self) -> str:
-        system_message = self.system_message_base + f'You also should response with messages as if you were {self.emotions[5]}. Below is your patient profile and list of any facts to use to help answer the questions.\n'
+        emotion = random.choice(self.emotions)
+        system_message = self.system_message_base + f'''
+        You also should response with messages as if you were feeling {emotion} about the therapist meeting.
+        Below is your patient profile and list of any facts to use to help answer the questions.\n'''
         system_message += self.patient_profile
 
-        user_message = 'Imagine you have just walked into the office of a physical therapist. Introducing yourself, give the reason you have come to your appointment and what you are looking for in the meeting'
+        user_message = '''Imagine you have just walked into the office of a physical therapist. Introducing yourself,
+        give the reason you have come to your appointment and what you are looking for in the meeting'''
 
         response = ollama.chat(
             model = self.LANG_MODEL,
@@ -76,6 +98,7 @@ class Model:
                 {'role': 'system', 'content': system_message},
                 {'role': 'user', 'content': user_message},
             ],
+            options = self.options
         )
         return response['message']['content']
 
@@ -84,7 +107,7 @@ class Model:
         system_message =  self.system_message_base + 'Below is your patient profile and list of facts to use to help answer the questions. Answer only from the context below, and if it is\'t there, say so.\n'
         system_message += self.patient_profile + '\n'
 
-        info = self.embedding.get_neighbors(query)
+        info = self.embedding.get_neighbors(query, self.n_rag_facts)
         system_message += "\n".join([item.text for item in info])
 
         messages = [{'role': 'system', 'content': system_message}] \
@@ -92,7 +115,8 @@ class Model:
             + [{'role': 'user', 'content': query}]
         result = ollama.chat(
             model = self.LANG_MODEL,
-            messages = messages
+            messages = messages,
+            options = self.options
         )
         response = result['message']['content']
         # Update Chat history
