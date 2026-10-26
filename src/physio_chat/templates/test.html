@@ -1,0 +1,52 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>My AI Chat</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="app">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>My AI</h2>
+
+            <button id="new-chat" class="new-chat-btn">
+                + New Chat
+            </button>
+
+            <h3>Conversations</h3>
+
+            <div id="conversation-list"></div>
+        </aside>
+
+        <!-- Main chat -->
+        <main class="main-chat">
+            <header class="chat-header">
+                <h2 id="chat-title">New Chat</h2>
+            </header>
+
+            <div id="chat-messages"></div>
+
+            <form id="chat-form">
+                <input
+                    id="message"
+                    type="text"
+                    placeholder="Message your AI..."
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit">Send</button>
+            </form>
+        </main>
+    </div>
+
+    <script src="/static/messaging.js"></script>
+</body>
+</html>

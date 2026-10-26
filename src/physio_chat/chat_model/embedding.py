@@ -11,6 +11,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 class AIResponse(BaseModel):
+    rowid: int
     distance: float
     text: str
     document: str
@@ -32,22 +33,25 @@ class EmbeddingDB:
 
         # Done to ensure the database file exists
         db_file.touch()
-        self.con = sqlite3.connect(db_file)
-        self.con.row_factory = sqlite3.Row
-        if self.use_ann:
-            self.con.enable_load_extension(True)
-            sqlite_vec.load(self.con)
-            self.con.enable_load_extension(False)
 
         # Setup database if empty
-        with self.con as db:
+        with self.get_connection() as db:
             result = db.execute('SELECT name from sqlite_master;')
             tables = [row['name'] for row in result.fetchall()]
-        if self.embedding_tbl not in tables or self.SENTENCE_TBL not in tables:
-            self.setup_db()
+            if self.embedding_tbl not in tables or self.SENTENCE_TBL not in tables:
+                self.setup_db()
 
-    def close(self) -> None:
-        self.con.close()
+    def get_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(
+            self.db_file,
+            timeout=30
+        )
+        conn.row_factory = sqlite3.Row
+        if self.use_ann:
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+        return conn
 
     # Metioned hack to get around not having document title in database
     def get_document_title(self, name: str) -> str:
@@ -60,7 +64,7 @@ class EmbeddingDB:
 
     def setup_db(self) -> None:
         # Setup
-        with self.con as db:
+        with self.get_connection() as db:
             # Remove old table
             result = db.execute('SELECT name from sqlite_master;')
             rows = result.fetchall()
@@ -106,7 +110,7 @@ class EmbeddingDB:
         return text
 
     def _vectorize_sentences(self) -> None:
-        with self.con as db:
+        with self.get_connection() as db:
             results = db.execute(f'''
                 SELECT rowid, text
                 FROM {self.SENTENCE_TBL}
@@ -130,9 +134,10 @@ class EmbeddingDB:
     def get_neighbors(self, query: str, n: int = 4) -> list[AIResponse]:
         query = 'search_query: ' + query
         vector = self._vectorize_chunk(query)
-        with self.con as db:
+        with self.get_connection() as db:
             results = db.execute(f'''
                 SELECT
+                    rowid,
                     {self.embedding_tbl}.distance,
                     {self.SENTENCE_TBL}.text,
                     {self.SENTENCE_TBL}.document,
@@ -150,8 +155,13 @@ class EmbeddingDB:
         output = []
         for row in results.fetchall():
             title = self.get_document_title(row['document'])
-            output.append(AIResponse(distance=row['distance'], text=row['text'],
-                                     document=row['document'], page=row['page'], document_title=title))
+            output.append(AIResponse(
+                rowid = row['rowid'],
+                distance=row['distance'],
+                text=row['text'],
+                document=row['document'],
+                page=row['page'],
+                document_title=title))
         return output
             
     def add_file(self, pdf_name: Path) -> None:
@@ -160,7 +170,7 @@ class EmbeddingDB:
         if current_file.exists():
             with open(current_file, 'r') as f:
                 aborted_file = f.read()
-            with self.con as db:
+            with self.get_connection() as db:
                 db.execute(f'''
                     DELETE FROM {self.embedding_tbl}
                     NATURAL JOIN {self.SENTENCE_TBL}
@@ -182,7 +192,7 @@ class EmbeddingDB:
         chunks = doc.to_chunks()
 
         # Add raw text to table
-        with self.con as db:
+        with self.get_connection() as db:
             # Check if document already added:
             results = db.execute(f'SELECT document FROM {self.SENTENCE_TBL};')
             if pdf_name.name in [row['document'] for row in results.fetchall()]:

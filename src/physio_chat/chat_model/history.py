@@ -1,37 +1,55 @@
 #!/usr/bin/env python3
 from pathlib import Path
+from pydantic import BaseModel
 import sqlite3
 
+class ChatMessage(BaseModel):
+    query: str
+    response: str
+
+class ChatHistory(BaseModel):
+    chat_id: int
+    profile: str
+    introduction: str
+    messages: list[ChatMessage]
+
+
 class HistoryDB:
-    def __init__(self):
-        history_file = Path('data/chat.db')
+    def __init__(self, filename='chat_history.db'):
+        self.history_file = Path('data')/filename
         schema_file = Path('data/schema.history.sql')
 
-        history_file.touch()
-        self.con = sqlite3.connect(history_file)
-        self.con.row_factory = sqlite3.Row
+        self.history_file.touch()
 
         # Setup database if empty
-        with self.con as db:
+        with self.get_connection() as db:
             result = db.execute('SELECT name from sqlite_master;')
             tables = [row['name'] for row in result.fetchall()]
-        # Db is empty, so initialize
-        if not tables:
-            with open(schema_file) as f, self.con as db:
-                db.executescript(f.read())
+            # Db is empty, so initialize
+            if not tables:
+                with open(schema_file, 'r') as f:
+                    db.executescript(f.read())
+
+    def get_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(
+            self.history_file,
+            timeout=30
+        )
+        conn.row_factory = sqlite3.Row
+        return conn
 
     # Adds the patient casefile and returns the patient id
-    def add_patient(self, profile: str) -> int:
-        with self.con as db:
+    def add_patient(self, profile: str, introduction: str) -> int:
+        with self.get_connection() as db:
             result = db.execute('''
-                INSERT INTO chats (patient_profile)
-                VALUES (?);
-            ''', [profile]
+                INSERT INTO chats (patient_profile, introduction)
+                VALUES (?, ?);
+            ''', [profile, introduction]
             )
             return result.lastrowid
 
     def add_chat(self, chat_id: int, query: str, response: str, chunk_ids: list[int]) -> None:
-        with self.con as db:
+        with self.get_connection() as db:
             result = db.execute('''
                 INSERT INTO histories (chat_id, query, response)
                 VALUES (?, ?, ?);
@@ -47,9 +65,62 @@ class HistoryDB:
         
     # Remove messages about a patient
     def delete_patient(self, chat_id: int) -> None:
-        with self.con as db:
+        with self.get_connection() as db:
             result = db.execute('''
                 DELETE FROM chats
                 WHERE id = ?;
             ''', [chat_id]
             )
+
+    def get_patient_list(self) -> list[int]:
+        with self.get_connection() as db:
+            result = db.execute('''
+                SELECT id
+                FROM chats;
+            '''
+            )
+            return [row['id'] for row in result.fetchall()]
+
+    def get_patient_messages(self, chat_id: int):
+        with self.get_connection() as db:
+            result = db.execute('''
+                SELECT
+                    patient_profile,
+                    introduction
+                FROM chats
+                WHERE
+                    id = ?;
+            ''', [chat_id]
+            )
+            chat_summary = result.fetchone()
+
+            result = db.execute('''
+                SELECT
+                    query,
+                    response
+                FROM histories
+                WHERE
+                    chat_id = ?
+                ORDER BY id;
+            ''', [chat_id]
+            )
+            messages = [ChatMessage(query=r['query'], response=r['response']) for r in result.fetchall()]
+            return ChatHistory(
+                chat_id=chat_id,
+                profile=chat_summary['patient_profile'],
+                introduction=chat_summary['introduction'],
+                messages = messages
+            )
+
+    def update_patient(self, chat_id: int, profile: str, introduction: str):
+        with self.get_connection() as db:
+            result = db.execute('''
+                UPDATE chats
+                SET
+                    patient_profile = ?,
+                    introduction = ?
+                WHERE
+                    id = ?;
+            ''', [profile, introduction, chat_id]
+            )
+        
