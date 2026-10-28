@@ -24,7 +24,8 @@ and create a treatment plan. Respond as if you were a real patient.
 Keep the replies quite short and in a casual style. Do not use technical terms and ask questions about technical terms if the user uses one with you.
 """
 
-embedding = EmbeddingDB(Path("data/embeddings.db"), embedding_tbl='vectors', use_ann=True)
+BASE_DIR = Path(__file__).resolve().parents[1]
+embedding = EmbeddingDB(BASE_DIR/"data/embeddings.db", embedding_tbl='vectors', use_ann=True)
 
 ###############################
 ####   HELPER FUNCTIONS    ####

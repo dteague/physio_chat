@@ -17,7 +17,8 @@ class ChatHistory(BaseModel):
 
 class HistoryDB:
     def __init__(self, filename='chat_history.db'):
-        self.history_file = Path('data')/filename
+        BASE_DIR = Path(__file__).resolve().parents[1]
+        self.history_file = BASE_DIR/'data'/filename
         schema_file = Path('data/schema.history.sql')
 
         self.history_file.touch()

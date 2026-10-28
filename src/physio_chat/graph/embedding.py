@@ -29,7 +29,8 @@ class EmbeddingDB:
 
         # Would put into database, but only realized after populating.
         # Will add to next version
-        self.document_info = pandas.read_csv(Path('data/documents/pubmed_pdfs/results.csv'))
+        BASE_DIR = Path(__file__).resolve().parents[1]
+        self.document_info = pandas.read_csv(BASE_DIR/'data/results.csv')
 
         # Done to ensure the database file exists
         db_file.touch()

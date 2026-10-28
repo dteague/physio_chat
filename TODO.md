@@ -8,6 +8,7 @@ Immediate todos for project:
 - [ ] Split message types into patient responses and role-play response (results of test or exercise or evaluation) both visually in chat message and in database
 - [ ] Setup docker for wrapping app
 - [ ] Add tests for web interface (namely check automatic updating). May be unnecessary when move to modern web frontend
+- [ ] Fix embedding database issue
 
 ## Longer term goals
 
