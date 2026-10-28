@@ -21,7 +21,6 @@ const apiFormat = {
     messageContent: message => message.content
 };
 
-
 //
 // 2. API FUNCTIONS
 //
@@ -58,6 +57,10 @@ async function apiCreateChat() {
 
 async function apiGetChat(chatId) {
     return apiRequest(`/${chatId}`);
+}
+
+async function apiGetChatStatus(chatId) {
+    return apiRequest(`/${chatId}/status`);
 }
 
 async function apiSendMessage(chatId, text) {
@@ -234,8 +237,11 @@ async function selectChat(chatId) {
 
         messages = apiFormat.chatMessages(data);
         titleElement.textContent = apiFormat.chatTitle(data);
-
         renderMessages();
+
+        // In case chat is in middle of process, rerender after ready
+        waitForChat(chatId);
+
     } catch (error) {
         if (version === loadVersion) {
             showError(error);
@@ -243,6 +249,38 @@ async function selectChat(chatId) {
     }
 
     updateInputState();
+}
+
+const POLL_INTERVAL = 1000; // One second
+
+const sleep = ms =>
+    new Promise(resolve => setTimeout(resolve, ms));
+
+async function waitForChat(chatId) {
+    while (true) {
+        // Stop if the user switched chats.
+        if (activeChatId !== chatId) return;
+
+        const status = await apiGetChatStatus(chatId);
+
+        // Check again after the asynchronous request.
+        if (activeChatId !== chatId) return;
+
+        if (status === "ready") {
+            // Rerender text (now that it's ready)
+            const data = await apiGetChat(chatId);
+            messages = data.messages;
+            renderMessages();
+            return;
+        }
+
+        if (status === "failed") {
+            throw new Error("AI generation failed");
+        }
+
+        await sleep(POLL_INTERVAL);
+    }
+
 }
 
 async function createChat() {
@@ -331,12 +369,7 @@ form.addEventListener("submit", async event => {
 
     try {
         await apiSendMessage(chatId, text);
-
-        // Only reload the chat if it's still selected.
-        // The backend/database owns the actual history.
-        if (activeChatId === chatId) {
-            await selectChat(chatId);
-        }
+        await waitForChat(chatId);
 
         // The backend may have updated the title.
         await refreshChatList();

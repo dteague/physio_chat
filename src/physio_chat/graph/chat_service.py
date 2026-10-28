@@ -24,11 +24,13 @@ class ChatService:
         return self.history.add_patient("temporary", "Initializing...", "none")
 
     def initialize_chat(self, chat_id: int) -> dict:
+        self.status = Status.INITIALIZING
         result = self.graph.invoke({
             "mode": "initialize", "options": self.options, "n_rag_facts": 2,
         })
         self.state = result
         self.history.update_patient(chat_id, result["profile"], result["introduction"], result['emotion'])
+        self.status = Status.READY
         return {"chat_id": chat_id, "profile": result["profile"], "introduction": result["introduction"]}
 
     def set_chat(self, chat_id: int):
@@ -59,26 +61,28 @@ class ChatService:
 
     def get_response(self, chat_id: int, query: str,
                      *, n_rag_facts: int = 2, use_hyde: bool = False) -> str:
-        details = self.history.get_patient_messages(chat_id)
+        self.status = Status.WORKING
         result = self.graph.invoke({
-            "mode": "reply", "profile": details.profile,
+            "mode": "reply", "profile": self.state['profile'],
             "messages": self.get_messages(chat_id), "query": query,
             "options": self.options, "n_rag_facts": n_rag_facts, "use_hyde": use_hyde,
         })
         self.state = result
         self.history.add_chat(chat_id, query, result["response"], result["chunk_ids"])
+        self.status = Status.READY
         return result["response"]
 
     def evaluate_chat(self, chat_id: int) -> str:
-        details = self.history.get_patient_messages(chat_id)
+        self.status = Status.WORKING
         result = self.graph.invoke({
-            "mode": "evaluate", "profile": details.profile,
+            "mode": "evaluate", "profile": self.state['profile'],
             "messages": self.get_messages(chat_id), "options": self.options,
             "n_rag_facts": 2,
         })
         self.state = result
         query = "Treatment for musculoskeletal disorders for people with endometriosis"
         self.history.add_chat(chat_id, query, result["response"], result["chunk_ids"])
+        self.status = Status.READY
         return result["response"]
 
     def list_chats(self) -> list[dict]:

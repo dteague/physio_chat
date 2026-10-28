@@ -20,11 +20,8 @@ router = APIRouter()
 
 
 def initialize_chat(chat_id: int, service: ChatServiceDep):
-    service.status = Status.INITIALIZING
     try:
         service.initialize_chat(chat_id)
-        service.status = Status.READY
-
     except Exception:
         service.status = Status.FAILED
         raise
@@ -60,8 +57,11 @@ async def create_chat(
 async def get_chat(chat_id: int, service: ChatServiceDep):
     service.set_chat(chat_id)
     messages =  [ChatMessage(**i) for i in service.get_messages(chat_id)]
-    return ChatMessages(id=chat_id, status=Status.READY, messages=messages)
+    return ChatMessages(id=chat_id, status=service.status, messages=messages)
 
+@router.get('/chat/{chat_id}/status')
+async def get_chat_status(chat_id: int, service: ChatServiceDep):
+    return service.status
  
 @router.post('/chat/{chat_id}/message', response_model=ChatResponse)
 async def message_chat(
