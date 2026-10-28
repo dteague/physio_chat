@@ -21,12 +21,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from .chat_model.model import Model
-# from .chat_model.test_model import Model
+from .graph.chat_service import ChatService
+from .graph.history import HistoryDB
+from .graph.builder import builder
 
+# from .chat_model.test_model import Model
+ 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.model = Model()
+    app.state.graph = builder.compile()
+    app.state.history = HistoryDB() 
+    app.state.service = ChatService(
+        app.state.graph,
+        app.state.history
+    )
     yield
 
 app = FastAPI(lifespan=lifespan)
