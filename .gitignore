@@ -12,3 +12,4 @@ uv.lock
 
 # Ignore training documents
 src/physio_chat/data/documents
+*db
