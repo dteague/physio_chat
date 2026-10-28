@@ -2,7 +2,8 @@ CREATE TABLE chats (
     id integer PRIMARY KEY,
     timestamp text DEFAULT CURRENT_TIME,
     patient_profile text NON NULL,
-    introduction text NON NULL
+    introduction text NON NULL,
+    emotion text NON NULL
 );
 
 CREATE TABLE histories (
